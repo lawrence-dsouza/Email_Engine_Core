@@ -1,0 +1,63 @@
+/* Basic Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Arial', sans-serif;
+  background-color: #f4f7fc;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  color: #333;
+}
+
+.container {
+  background-color: #fff;
+  padding: 30px;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  width: 300px;
+}
+
+h1 {
+  margin-bottom: 20px;
+  font-size: 24px;
+  color: #4a4a4a;
+}
+
+button {
+  width: 100%;
+  padding: 12px;
+  margin-top: 20px;
+  background-color: #0078d4; /* Outlook Blue */
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+button:hover {
+  background-color: #005a9e;
+}
+
+.footer {
+  margin-top: 20px;
+  font-size: 14px;
+  color: #888;
+}
+
+.footer a {
+  color: #0078d4;
+  text-decoration: none;
+}
+
+.footer a:hover {
+  text-decoration: underline;
+}
