@@ -1,10 +1,10 @@
 const { Client } = require('@elastic/elasticsearch');
 
 const esClient = new Client({
-  node: 'http://localhost:9200',  // Your Elasticsearch endpoint
+  node: process.env.ELASTICSEARCH_URI,  // Your Elasticsearch endpoint
   auth: {
-    username: 'elastic',
-    password: 'password'
+    username: process.env.ES_USERNAME,
+    password: process.env.ES_PASSWORD
   }
 });
 
