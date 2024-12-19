@@ -42,31 +42,15 @@ Before you begin, make sure you have the following installed:
       ```bash
       docker compose up elasticsearch -d
       ```
-    b) Set Up Elasticsearch Credentials
-      
-      Set up the Elasticsearch credentials by running:
 
-      ```bash
-      docker exec -it elasticsearch /bin/bash
-      bin/elasticsearch-setup-passwords interactive
-      ```
-      
-      When prompted, set the password to `password`.
-
-      After setting the password, restart Elasticsearch:
-
-      ```bash
-      docker compose restart elasticsearch
-      ```
-
-    c) Start MongoDB
+    b) Start MongoDB
       
       Run the following command to start MongoDB:
 
       ```bash
       docker compose up mongo -d
       ```
-    d) Start the Application
+    c) Start the Application
 
       Finally, run the application:
       
