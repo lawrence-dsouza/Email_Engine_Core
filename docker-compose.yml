@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  # Node.js Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nodejs-app
+    ports:
+      - "3000:3000"  # Exposing port 3000 to host
+    depends_on:
+      - mongo
+      - elasticsearch
+    environment:
+      - ELASTICSEARCH_URI=http://elasticsearch:9200  # Use the elasticsearch service within Docker network
+      - ES_USERNAME=elastic
+      - ES_PASSWORD=password
+    networks:
+      - app-network
+
+  # MongoDB Service (No authentication)
+  mongo:
+    image: mongo:latest
+    container_name: mongodb
+    volumes:
+      - mongo-data:/data/db  # Persist MongoDB data
+      - ./mongo-init/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js  # Mount the init script
+    networks:
+      - app-network
+
+  # ElasticSearch Service (With authentication)
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.9.0
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - ELASTICSEARCH_USERNAME=elastic  # ElasticSearch username
+      - ELASTICSEARCH_PASSWORD=password  # ElasticSearch password
+    ports:
+      - "9200:9200"  # Exposing ElasticSearch port
+    volumes:
+      - es-data:/usr/share/elasticsearch/data  # Persist ElasticSearch data
+    networks:
+      - app-network
+
+# Define networks
+networks:
+  app-network:
+    driver: bridge
+
+# Volumes for data persistence
+volumes:
+  mongo-data:
+    driver: local
+  es-data:
+    driver: local

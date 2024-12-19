@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>
+    <%= folderTitle %> - Your Inbox
+  </title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    /* Basic Styles */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f4f7fc;
+      display: flex;
+      height: 100vh;
+    }
+
+    /* Sidebar Styles */
+    .sidebar {
+      width: 220px;
+      background-color: #2c3e50;
+      color: white;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .sidebar h2 {
+      text-align: center;
+      color: #fff;
+      margin-bottom: 30px;
+    }
+
+    .folder {
+      padding: 10px;
+      font-size: 16px;
+      cursor: pointer;
+      margin: 5px 0;
+      transition: background-color 0.3s;
+      border-radius: 5px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .folder:hover {
+      background-color: #34495e;
+    }
+
+    .folder.active {
+      background-color: #0078d4;
+      /* Outlook Blue */
+    }
+
+    .folder span {
+      margin-left: 8px;
+      font-size: 14px;
+      color: #ddd;
+    }
+
+    /* Content Area Styles */
+    .content {
+      flex-grow: 1;
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    .email-list {
+      list-style-type: none;
+      padding: 0;
+    }
+
+    .email-item {
+      background-color: white;
+      padding: 15px;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+
+    .email-item:hover {
+      background-color: #f1f1f1;
+    }
+
+    .email-item .email-header {
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .email-item .email-header span {
+      font-weight: bold;
+    }
+
+    .email-item .email-body {
+      margin-top: 10px;
+      color: #555;
+      font-size: 14px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    /* Pagination Styles */
+    .pagination {
+      margin-top: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .pagination button {
+      padding: 8px 16px;
+      background-color: #0078d4;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+
+    .pagination button:hover {
+      background-color: #005b8d;
+    }
+
+    .pagination span {
+      font-size: 16px;
+    }
+
+    #sync-status {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 10px;
+      border-radius: 5px;
+      z-index: 1000;
+      display: none;
+      /* Hidden initially */
+    }
+
+    #sync-progress-bar {
+      width: 100%;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Sidebar for Folders -->
+  <div class="sidebar">
+    <h2>Email Folders</h2>
+    <div class="folder-list">
+      <!-- Sidebar folder items with counts -->
+      <div class="folder" id="inbox" onclick="loadFolder('inbox')">
+        Inbox <span id="count-inbox">
+          <%= folderCounts.inbox %>
+        </span>
+      </div>
+      <div class="folder" id="sent" onclick="loadFolder('sent')">
+        Sent <span id="count-sent">
+          <%= folderCounts.sent %>
+        </span>
+      </div>
+      <div class="folder" id="drafts" onclick="loadFolder('drafts')">
+        Drafts <span id="count-drafts">
+          <%= folderCounts.drafts %>
+        </span>
+      </div>
+      <div class="folder" id="deleted" onclick="loadFolder('deleted')">
+        Deleted <span id="count-deleted">
+          <%= folderCounts.deleted %>
+        </span>
+      </div>
+      <div class="folder" id="junk" onclick="loadFolder('junk')">
+        Junk <span id="count-junk">
+          <%= folderCounts.junk %>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Content Area for Emails -->
+  <div class="content">
+    <h1>
+      <%= folderTitle %>
+    </h1>
+    <ul class="email-list" id="email-list">
+      <% emails.forEach(email=> { %>
+        <li class="email-item" data-id="<%= email.id %>">
+          <div class="email-header">
+            <span>
+              <%= email.from %>
+            </span>
+            <span>
+              <%= email.subject %>
+            </span>
+            <span>
+              <%= email.receivedDate %>
+            </span>
+          </div>
+          <!-- <div class="email-body">
+            <%= email.body %>
+          </div> -->
+        </li>
+        <% }) %>
+    </ul>
+
+    <!-- Pagination Controls -->
+    <div class="pagination"></div>
+  </div>
+
+  <!-- Sync Progress Notification -->
+  <div id="sync-status" style="display:none;">
+    <p id="sync-message"></p>
+    <progress id="sync-progress-bar" max="100" value="0"></progress>
+  </div>
+  <script>
+    let currentPage = 1; // Track the current page
+    const socket = io(); // Initialize socket.io
+
+    const user_id = '<%= user_id %>';
+    const email = '<%= email %>';
+    const access_token = '<%= access_token %>';
+    const provider = '<%= provider %>';
+
+    socket.emit('monitor', {
+      userId: user_id,
+      email: email,
+      accessToken: access_token,
+      provider: provider
+    });
+
+    socket.on('mail-recieved', (data) => {
+      console.log(data);
+    });
+
+    // Function to load emails for a specific folder and page
+    function loadFolder(folderName, page = 1) {
+      // Remove active class from all folders
+      document.querySelectorAll('.folder').forEach(folder => folder.classList.remove('active'));
+
+      // Add active class to the clicked folder
+      document.getElementById(folderName).classList.add('active');
+
+      // Set the current page
+      currentPage = page;
+
+      // Fetch emails for the folder with pagination
+      fetch(`/api/dashboard/outlook/${folderName}?page=${currentPage}`)
+        .then(response => response.json())
+        .then(data => {
+          const emailList = document.querySelector('#email-list');
+          emailList.innerHTML = ''; // Clear the current email list
+
+          // Render emails only for the current page (5 emails per page)
+          data.emails.forEach(email => {
+            const emailItem = document.createElement('li');
+            emailItem.classList.add('email-item');
+            emailItem.dataset.id = email.id;
+            emailItem.innerHTML = `
+        <div class="email-header">
+          <span>${email.from}</span>
+          <span>${email.subject}</span>
+          <span>${email.receivedDate}</span>
+        </div>
+      `;
+            //             <div class="email-body">${email.body}</div>
+            emailList.appendChild(emailItem);
+          });
+
+          // Render the pagination controls after the emails are loaded
+          renderPagination(currentPage, data.totalEmails, data.emailsPerPage);
+        })
+        .catch(error => console.error('Error loading emails:', error));
+    }
+
+    // Function to render pagination controls
+    function renderPagination(currentPage, totalEmails, emailsPerPage) {
+      const paginationContainer = document.querySelector('.pagination');
+      paginationContainer.innerHTML = ''; // Clear previous pagination controls
+
+      // Calculate total pages based on total emails and emails per page
+      const totalPages = Math.ceil(totalEmails / emailsPerPage);
+
+      // Previous Page Button
+      if (currentPage > 1) {
+        const prevButton = document.createElement('button');
+        prevButton.textContent = 'Previous';
+        prevButton.onclick = () => loadFolder('inbox', currentPage - 1); // Go to the previous page
+        paginationContainer.appendChild(prevButton);
+      }
+
+      // Page Number Display
+      const pageNumber = document.createElement('span');
+      pageNumber.textContent = `Page ${currentPage} of ${totalPages}`;
+      paginationContainer.appendChild(pageNumber);
+
+      // Next Page Button
+      if (currentPage < totalPages) {
+        const nextButton = document.createElement('button');
+        nextButton.textContent = 'Next';
+        nextButton.onclick = () => loadFolder('inbox', currentPage + 1); // Go to the next page
+        paginationContainer.appendChild(nextButton);
+      }
+    }
+    socket.on('connected', (message) => {
+      console.log(message); // Should log: "You are connected to the server"
+    });
+
+    // Socket event listeners for synchronization status
+    socket.on('sync-start', (data) => {
+      const syncStatus = document.getElementById('sync-status');
+      const syncMessage = document.getElementById('sync-message');
+      const progressBar = document.getElementById('sync-progress-bar');
+
+      syncStatus.style.display = 'block'; // Show sync progress
+      syncMessage.textContent = `Starting sync... (${data.totalMessages} messages to sync)`;
+      progressBar.value = 0;
+    });
+
+    socket.on('sync-progress', (data) => {
+      const syncMessage = document.getElementById('sync-message');
+      const progressBar = document.getElementById('sync-progress-bar');
+
+      syncMessage.textContent = `Syncing... Batch ${data.batch} of ${data.totalBatches}`;
+      const progress = Math.round((data.batch / data.totalBatches) * 100);
+      progressBar.value = progress;
+    });
+
+    socket.on('sync-complete', (data) => {
+      const syncStatus = document.getElementById('sync-status');
+      const syncMessage = document.getElementById('sync-message');
+      const progressBar = document.getElementById('sync-progress-bar');
+
+      syncMessage.textContent = data.message;
+      progressBar.value = 100; // Sync complete
+      setTimeout(() => {
+        syncStatus.style.display = 'none'; // Hide the progress bar after some time
+      }, 5000);
+    });
+
+    socket.on('sync-error', (message) => {
+      const syncStatus = document.getElementById('sync-status');
+      const syncMessage = document.getElementById('sync-message');
+
+      syncMessage.textContent = `Error: ${message}`;
+      syncStatus.style.display = 'block'; // Show error message
+      setTimeout(() => {
+        syncStatus.style.display = 'none'; // Hide after 2 seconds
+      }, 2000);
+    });
+
+    socket.on('email-recieved', (data) => {
+      console.log("New emails received: ", data.messages);
+
+      // You can display a notification banner or update the inbox count
+      const newMessageCount = data.messages.length;
+
+      // Display a notification to the user about new emails
+      if (newMessageCount > 0) {
+        alert(`${newMessageCount} new message(s) received!`);
+
+        // Optionally, update the email list or inbox count dynamically
+        const inboxCount = document.getElementById('count-inbox');
+        const currentCount = parseInt(inboxCount.textContent) || 0;
+        inboxCount.textContent = currentCount + newMessageCount;
+
+        // Optionally, reload the inbox or update the email list with new data
+        // loadFolder('inbox'); // Assuming you want to refresh the inbox folder
+      }
+    });
+
+    socket.on('email-deleted', (data) => {
+      console.log("Email deleted", data.messageId);
+      alert(`Email ${data.messageId} has been deleted`);
+      // Optionally, update the email list or inbox count dynamically
+      const deletedCount = document.getElementById('count-deleted');
+      const currentCount = parseInt(deletedCount.textContent) || 0;
+      deletedCount.textContent = currentCount + 1;
+    });
+
+    socket.on('email-updated', (data) => {
+      console.log("Email updated", data.messageId);
+      alert(`Email ${data.messageId} maked with flag ${data.flag}`);
+    });
+
+    // Initialize folder on page load
+    // loadFolder('inbox');
+  </script>
+</body>
+
+</html>
